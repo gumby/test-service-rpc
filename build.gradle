@@ -1,0 +1,93 @@
+buildscript {
+  repositories {
+  	mavenCentral()
+    maven { url 'http://192.168.33.10:8081/artifactory/plugins-release' }      
+  }
+  dependencies {
+    classpath 'org.jfrog.buildinfo:build-info-extractor-gradle:4+'
+    classpath 'com.google.protobuf:protobuf-gradle-plugin:0.8.0'
+  }
+}
+
+apply plugin: 'java'
+apply plugin: 'maven-publish'
+apply plugin: 'com.jfrog.artifactory'
+apply plugin: 'com.google.protobuf'
+
+sourceSets {
+  main {
+    proto {
+      srcDir 'src/main/proto'
+    }
+    java {
+      srcDirs 'src/main/java', file("${protobuf.generatedFilesBaseDir}/main/java"), file("${protobuf.generatedFilesBaseDir}/main/grpc")     
+    }
+  }
+}
+
+protobuf {
+  protoc {
+    // The version of protoc must match protobuf-java. If you don't depend on
+    // protobuf-java directly, you will be transitively depending on the
+    // protobuf-java version that grpc depends on.
+    artifact = "com.google.protobuf:protoc:3.0.2"
+  }
+  plugins {
+    grpc {
+      artifact = 'io.grpc:protoc-gen-grpc-java:1.0.1'
+    }
+  }
+  
+  generateProtoTasks {
+    all()*.plugins {
+      grpc {}
+    }
+  }
+}
+
+group 'com.cleo.clarify.chassis.test-service'
+version '1.0'
+
+def libraryGroupId = 'com.cleo.clarify'
+def libraryArtifactId = 'test-service'
+def libraryVersion = version
+
+publishing {
+  publications {
+    shadow(MavenPublication) {
+      groupId libraryGroupId
+      version libraryVersion
+      artifactId libraryArtifactId
+      artifact("$buildDir/libs/test-service-rpc.jar")
+    }
+  }
+}
+
+artifactory {
+  contextUrl = 'http://192.168.33.10:8081/artifactory'
+  publish {
+    repository {
+      repoKey = 'libs-release-local'
+      username = 'admin'
+      password = 'password'
+      maven = true
+    }
+    defaults {
+      publications('shadow')
+      publishArtifacts = true
+
+      properties = ['qa.level': 'basic', 'dev.team': 'core']
+      publishPom = true
+    }
+  }
+}
+
+repositories {
+  mavenCentral()
+}
+
+dependencies {
+	compile 'io.grpc:grpc-netty:1.0.1'
+	compile 'io.grpc:grpc-protobuf:1.0.1'
+	compile 'io.grpc:grpc-stub:1.0.1'
+}
